@@ -5,7 +5,7 @@
 ### Required Packages:
 * argparse (Default)
 * cv2 (Install Required)
-* numpy as np (Install Required)
+* numpy (Install Required)
 * colorama (Might Require Install)
 
 ### Command Line Options
@@ -13,7 +13,7 @@ Running the script with no command line options will run all options that say 'D
 default image (lane-test.jpg) with canny edge detection and Otsu's Tresholding.
 
 Usage:   
-`image_detector.py [-h] [-image IMAGE PATH] [-blob] [-adaptive] 
+`python image_detector.py [-h] [-image IMAGE PATH] [-blob] [-adaptive] 
                         [--show-thresh] [-contour] [--bounding-polygon]
                         [--convex-hull] [-color] [-canny] [-all]`
 
@@ -26,8 +26,8 @@ Options:
   * Runs the Detection With Color Thresholding for White and Yellow
 * -canny
   * Runs the Detection With Canny Edge Detection for White and Yellow (Default True)
-* -adaptive
-  * Changes thresholding method to Adaptive (default is otsu)
+* -otsu
+  * Changes thresholding method to Otsu (default is adaptive)
 * --show-thresh
   * Outputs the thresholded image using cv2.imshow
 * -blob
@@ -49,12 +49,23 @@ Note:
 
 Examples:
 * `python ./image_detector.py` will output the default image (lane-test.jpg) using the default  
-method (Otsu's thresholding) and the default method (Contour Detection)
-* `python ./image_detector.py -image lane-test.jpg` will output Contour Detection with Otsu's Thresholding  
+method (Adaptive thresholding) and the default method (Contour Detection)
+* `python ./image_detector.py -image lane-test.jpg` will output Contour Detection with Adaptive Thresholding  
 from the image lane-test.jpg
 * `python ./image_detector.py -blob --bouding-polygon --show-thresh` will output Blob Detection, Bouding Polygon  
-method, and show all thresholding images using Otsu's
-* `python ./image_detector.py -blob --bouding-polygon --show-thresh -adaptive` will output Blob Detection,   
-Bouding Polygon method, and show all thresholding images using Adaptive Tresholding
+method, and show all thresholding images using Adaptive Thresholding
+* `python ./image_detector.py -blob --bouding-polygon --show-thresh -otsu` will output Blob Detection,   
+Bouding Polygon method, and show all thresholding images using Otsu Tresholding
+
+## How to use video_detector.py:
+
+### Required Packages:
+* cv2 (Install Required)
+* numpy (Install Required)
+
+### Command Line Options
+
+Usage:   
+`python video_detector.py` Outputs video with bouding polygons (More to Come)
 
 Enjoy!
