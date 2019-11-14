@@ -10,20 +10,10 @@ print(Fore.RED + "Press ESC to Close all Windows")
 # Variables to make colors simpler
 green = (0, 255, 0)
 red = (0, 0, 255)
-# Masks for yellow and white
-lower_yellow_mask = [20, 100, 100]
-upper_yellow_mask = [30, 255, 255]
-lower_white_mask = 200
-upper_white_mask = 250
+kernel_size = (5, 5)
 # Canny Thresholds
 canny_low_thresh = 50
 canny_high_thresh = 150
-# Hough Values
-rho = 6
-theta = np.pi / 60
-threshold_value = 160
-minLineLength = 40
-maxLineGap = 25
 
 # Blob Detection, Not good. Even when messing with parameters could not detect lanes
 def blob_detection(gray_img):
@@ -44,47 +34,48 @@ def blob_detection(gray_img):
 
 
 # Thresholds image to only show white and yellow objects
+# DO NOT USE
 def color_thresholding(gray_img, hsv_img, show_thresh):
-    # Creates lower and upper bounds for the yellow mask
-    lower_yellow = np.array(lower_yellow_mask, dtype="uint8")
-    upper_yellow = np.array(upper_yellow_mask, dtype="uint8")
-
-    # Creates yellow and white masks over the image to isolate the colors
-    mask_yellow = cv2.inRange(hsv_img, lower_yellow, upper_yellow)
-    mask_white = cv2.inRange(gray_img, lower_white_mask, upper_white_mask)
-    mask_yw = cv2.bitwise_or(mask_white, mask_yellow)
-    mask_yw_image = cv2.bitwise_and(gray_img, mask_yw)
-    if show_thresh:
-        cv2.imshow("Color", mask_yw_image)
-    return mask_yw_image
+    pass
 
 
 def canny(blur_img, show_thresh):
     edges = cv2.Canny(blur_img, canny_low_thresh, canny_high_thresh)
     if show_thresh:
         cv2.imshow("Canny Detection", edges)
-    return edges
+
+    img = region_of_interest(edges)
+    if show_thresh:
+        cv2.imshow("Canny Detection w/ Region of Interest", img)
+
+    return img
 
 
-def get_image(original, color_img, canny_img, color_bool, canny_bool, show_thresh):
-    image_canny, image_color = None, None
-    if canny_bool:
-        image_canny = canny(canny_img, show_thresh)
-    if color_bool:
-        image_color = color_thresholding(color_img[0], color_img[1], show_thresh)
-    
-    if canny_bool and color_bool:
-        return cv2.bitwise_and(image_canny, image_color)
-    elif canny_bool:
-        return image_canny
-    elif color_bool:
-        return image_color
-    else:
-        return original
+def process_image(gray_img, options, imgs, show_thresh):
+    processed_imgs = []
+
+    threshed_img = threshold(options[0], gray_img, show_thresh)
+
+    # Color thresholding is true
+    if options[1]:
+        processed_imgs.append(color_thresholding(imgs[0][0], imgs[0][1], show_thresh))
+    # Canny Edge Detection is True
+    if options[2]:
+        processed_imgs.append(canny(imgs[1], show_thresh))
+
+    # Bitwise And all Images
+    for img in processed_imgs:
+        threshed_img = cv2.bitwise_and(threshed_img, img)
+
+    # Morphology is True
+    if options[3]:
+        threshed_img = morphology(threshed_img)
+
+    return threshed_img
 
 
 def threshold(method, gray_img, show_thresh):
-    blur = cv2.GaussianBlur(gray_img, (5, 5), 0)
+    blur = cv2.GaussianBlur(gray_img, kernel_size, 0)
     if method == "Adaptive":
         # Adaptive Thresholding
         # Advanced Thresholding for Contours and Bounding Polygons
@@ -98,44 +89,49 @@ def threshold(method, gray_img, show_thresh):
             blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
         )
 
-        if show_thresh:
-            cv2.imshow(method + " Thresholding", threshed_img)
-    # Further threshold by taking out the sky/upper half of image
-    threshed_img = region_of_interest(threshed_img)
     if show_thresh:
-        cv2.imshow(method + " Thresholding w/ Region of Interest", threshed_img)
+        cv2.imshow(method + " Thresholding", threshed_img)
 
-    return [method, threshed_img]
+    return threshed_img
 
 
 # Region of Interest
-def region_of_interest(image):
-    # Get Verticies of Image
-    rows, cols = image.shape[:2]
-    bottom_left = [0, rows]
-    top_left = [0, rows * 0.5]
-    bottom_right = [cols, rows]
-    top_right = [cols, rows * 0.5]
-    verticies = np.array(
-        [[bottom_left, top_left, top_right, bottom_right]], dtype=np.int32
+def region_of_interest(img):
+    rows, cols = img.shape[:2]
+    mask = np.zeros_like(img)
+
+    left_bottom = [cols * 0.1, rows]
+    right_bottom = [cols * 0.95, rows]
+    left_top = [cols * 0.4, rows * 0.6]
+    right_top = [cols * 0.6, rows * 0.6]
+
+    vertices = np.array(
+        [[left_bottom, left_top, right_top, right_bottom]], dtype=np.int32
     )
 
-    # Make a mask to not detect top half of image
-    mask = np.zeros_like(image)
-
-    if len(image.shape) == 2:
-        cv2.fillPoly(mask, verticies, 255)
+    if len(mask.shape) == 2:
+        cv2.fillPoly(mask, vertices, 255)
     else:
-        cv2.fillPoly(mask, verticies, (255,) * mask.shape[2])
+        cv2.fillPoly(mask, vertices, (255,) * mask.shape[2])
+    return cv2.bitwise_and(img, mask)
 
-    return cv2.bitwise_and(image, mask)
+
+# Various morphing moethods to remove noise
+def morphology(img):
+    if show_thresh:
+        cv2.imshow(method + " Thresholding with Color/Canny" + " Pre-Morphology", img)
+    kernel = np.ones(kernel_size, np.uint8)
+    morph_img = cv2.morphologyEx(img, cv2.MORPH_CLOSE, kernel)
+    if show_thresh:
+        cv2.imshow(method + " Thresholding with Color/Canny" + " Morphology", morph_img)
+    return morph_img
 
 
-def contours_detection(method, threshed_img):
+def contours_detection(processed_img):
     # Finds contours and get the external one
     # Basically Forms an outline of image
     contours, hier = cv2.findContours(
-        threshed_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        processed_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
     )
     image = cv2.pyrDown(cv2.imread(filename, cv2.IMREAD_UNCHANGED))
     # Using only contours to fill in Objects
@@ -144,9 +140,9 @@ def contours_detection(method, threshed_img):
     return [image, contours]
 
 
-def bouding_polygons(method, image, filename):
+def bouding_polygons(img, filename):
     bounding_polygon = cv2.pyrDown(cv2.imread(filename, cv2.IMREAD_UNCHANGED))
-    contours = contours_detection(method, image)[1]
+    contours = contours_detection(img)[1]
 
     for cnt in contours:
         # calculate epsilon base on contour's perimeter
@@ -155,16 +151,21 @@ def bouding_polygons(method, image, filename):
         # get approx polygons
         approx = cv2.approxPolyDP(cnt, epsilon, True)
         # draw approx polygons
-        cv2.drawContours(bounding_polygon, [approx], -1, green, thickness=cv2.FILLED)
+        perimeter = cv2.arcLength(cnt, True)
+        x, y, w, h = cv2.boundingRect(cnt)
+        if perimeter > 35 and w > 12 and h > 10:
+            cv2.drawContours(
+                bounding_polygon, [approx], -1, green, thickness=cv2.FILLED
+            )
 
     return bounding_polygon
 
 
-def convex_hull(method, image, filename):
+def convex_hull(img, filename):
     # Convex Hull ONLY Otsu's Thresholding
     # Hull is Filled
     bounding_polygon = cv2.pyrDown(cv2.imread(filename, cv2.IMREAD_UNCHANGED))
-    contours = contours_detection(method, image)[1]
+    contours = contours_detection(img)[1]
     for cnt in contours:
         # get convex hull
         hull = cv2.convexHull(cnt)
@@ -191,10 +192,10 @@ if __name__ == "__main__":
         help="Outputs the Result of Blob Detection",
     )
     parser.add_argument(
-        "-adaptive",
+        "-otsu",
         action="store_true",
         default=False,
-        help="Whether to Use Adaptive Thresholding instead of Otsu's",
+        help="Whether to Use Otsu Thresholding instead of Adaptive",
     )
     parser.add_argument(
         "--show-thresh",
@@ -204,14 +205,14 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "-contour",
-        action="store_false",
-        default=True,
+        action="store_true",
+        default=False,
         help="Outputs the result of Contour Detection (Default True)",
     )
     parser.add_argument(
         "--bounding-polygon",
-        action="store_true",
-        default=False,
+        action="store_false",
+        default=True,
         help="Outputs the result of Using a Bounding Polygon",
     )
     parser.add_argument(
@@ -224,7 +225,13 @@ if __name__ == "__main__":
         "-color",
         action="store_true",
         default=False,
-        help="Runs the Detection With Color Thresholding for White and Yellow",
+        help="Runs the Detection With Color Thresholding for White and Yellow. (CURRENTLY UNIMPLEMENTED)",
+    )
+    parser.add_argument(
+        "-morph",
+        action="store_false",
+        default=True,
+        help="Run the Morphology Methods (Currently only Close) (Default True)",
     )
     parser.add_argument(
         "-canny",
@@ -239,61 +246,35 @@ if __name__ == "__main__":
         help="Run Contour, Blob, Convex Hull, and Bounding Polygon Detection. Does not change any Thresholding Values.",
     )
     args = vars(parser.parse_args())
+    print(args)
     # read image using command line arguement
     if args["Image Path"] != "False":
-        filename = args["Image"]
+        filename = args["Image Path"]
     else:
-        filename = "lane-test.jpg"  # Default of no command line arguement
+        # Default of no command line arguement
+        filename = "dashcam_clear_conditions_picture.jpg"
     # Show Threshold option
     show_thresh = args["show_thresh"]
+    if args["otsu"]:
+        method = "Otsu"
+    else:
+        method = "Adaptive"
     # Make images that are needed
-    img = cv2.pyrDown(cv2.imread(filename, cv2.IMREAD_UNCHANGED))
-    gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    cv2.imshow("Original Image", img)
+    original_image = cv2.pyrDown(cv2.imread(filename, cv2.IMREAD_UNCHANGED))
+    gray_image = cv2.cvtColor(original_image, cv2.COLOR_BGR2GRAY)
+    hsv_image = cv2.cvtColor(original_image, cv2.COLOR_BGR2HSV)
+    cv2.imshow("Original Image", original_image)
 
-    # Different Methods based off of command line arguements
-
-    # Thresholding (Otsu Default)
-
-    # Get the Threshold method passed in
-    def get_thresh_method():
-        if args["adaptive"]:
-            method, image = threshold("Adaptive", gray_img, show_thresh)
-        else:
-            method, image = threshold("Otsu", gray_img, show_thresh)
-        return [method, image]
-
-    method, image = get_thresh_method()
-
-    # Get image after Color and Canny Detection if Applicable
-    image = cv2.bitwise_and(
-        image,
-        get_image(
-            gray_img,
-            [gray_img, hsv_img],
-            cv2.GaussianBlur(gray_img, (5, 5), 0),
-            args["color"],
-            args["canny"],
-            show_thresh,
-        ),
+    # Get image after all thresholding and image detection
+    image = process_image(
+        gray_image,
+        (method, args["color"], args["canny"], args["morph"]),
+        ((gray_image, hsv_image), cv2.GaussianBlur(gray_image, kernel_size, 0)),
+        show_thresh,
     )
 
-    if show_thresh:
-        cv2.imshow(method + ' Thresholding with Color/Canny', image)
-    
     check_mark = u"\u2713"
     cross_mark = u"\u2717"
-
-    # Canny Edge Detection
-    # if args["canny"]:
-    #     canny_image = canny(cv2.GaussianBlur(gray_img, (5,5), 0))
-    #     image = cv2.bitwise_and(image, canny_image)
-
-    # Color Thresholding
-    # if args["color"]:
-    #     color_image = color_thresholding(gray_img, hsv_img)
-    #     image = cv2.bitwise_and(color_image, image)
 
     # Message with what Images are loaded
     print(Fore.GREEN + "Showing Images...")
@@ -315,6 +296,11 @@ if __name__ == "__main__":
         print(Fore.GREEN + message + Fore.LIGHTMAGENTA_EX + check_mark)
     else:
         print(Fore.GREEN + message + Fore.WHITE + cross_mark)
+    message = "    Morphology? "
+    if args["morph"]:
+        print(Fore.GREEN + message + Fore.LIGHTMAGENTA_EX + check_mark)
+    else:
+        print(Fore.GREEN + message + Fore.WHITE + cross_mark)
 
     print(Fore.GREEN + "Methods:")
 
@@ -328,7 +314,7 @@ if __name__ == "__main__":
     # Blob Detection
     message = "    Blob Detection"
     if args["blob"]:
-        blob_detection(gray_img)
+        blob_detection(gray_image)
         print(Fore.GREEN + message + " " + Fore.LIGHTMAGENTA_EX + check_mark)
     else:
         print(Fore.GREEN + message + " " + Fore.WHITE + cross_mark)
@@ -336,54 +322,42 @@ if __name__ == "__main__":
     # Detection Methods
     message = "    Contour Detection"
     if args["contour"]:
-        image = contours_detection(method, image)[0]
+        image = contours_detection(image)[0]
         cv2.imshow("Contours w/ " + method + " Thresholding", image)
-        method, thresh_image = get_thresh_method()
-        image = get_image(
-            gray_img,
-            [gray_img, hsv_img],
-            cv2.GaussianBlur(gray_img, (5, 5), 0),
-            args["color"],
-            args["canny"],
+        image = process_image(
+            gray_image,
+            (method, args["color"], args["canny"], args["morph"]),
+            ((gray_image, hsv_image), cv2.GaussianBlur(gray_image, kernel_size, 0)),
             show_thresh,
         )
-        image = cv2.bitwise_and(thresh_image, image)
         print(Fore.GREEN + message + " " + Fore.LIGHTMAGENTA_EX + check_mark)
     else:
         print(Fore.GREEN + message + " " + Fore.WHITE + cross_mark)
 
     message = "    Bouding Polygon Method"
     if args["bounding_polygon"]:
-        image = bouding_polygons(method, image, filename)
+        image = bouding_polygons(image, filename)
         cv2.imshow("Bounding Box " + method + " Thresholding", image)
-        method, thresh_image = get_thresh_method()
-        image = get_image(
-            gray_img,
-            [gray_img, hsv_img],
-            cv2.GaussianBlur(gray_img, (5, 5), 0),
-            args["color"],
-            args["canny"],
+        image = process_image(
+            gray_image,
+            (method, args["color"], args["canny"], args["morph"]),
+            ((gray_image, hsv_image), cv2.GaussianBlur(gray_image, kernel_size, 0)),
             show_thresh,
         )
-        image = cv2.bitwise_and(thresh_image, image)
         print(Fore.GREEN + message + " " + Fore.LIGHTMAGENTA_EX + check_mark)
     else:
         print(Fore.GREEN + message + " " + Fore.WHITE + cross_mark)
 
     message = "    Convex Hull Method"
     if args["convex_hull"]:
-        image = convex_hull(method, image, filename)
+        image = convex_hull(image, filename)
         cv2.imshow("Convex Hull Otsu Thresholding", image)
-        method, thresh_image = get_thresh_method()
-        image = get_image(
-            gray_img,
-            [gray_img, hsv_img],
-            cv2.GaussianBlur(gray_img, (5, 5), 0),
-            args["color"],
-            args["canny"],
+        image = process_image(
+            gray_image,
+            (method, args["color"], args["canny"], args["morph"]),
+            ((gray_image, hsv_image), cv2.GaussianBlur(gray_image, kernel_size, 0)),
             show_thresh,
         )
-        image = cv2.bitwise_and(thresh_image, image)
         print(Fore.GREEN + message + " " + Fore.LIGHTMAGENTA_EX + check_mark)
     else:
         print(Fore.GREEN + message + " " + Fore.WHITE + cross_mark)
