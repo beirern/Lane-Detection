@@ -246,7 +246,6 @@ if __name__ == "__main__":
         help="Run Contour, Blob, Convex Hull, and Bounding Polygon Detection. Does not change any Thresholding Values.",
     )
     args = vars(parser.parse_args())
-    print(args)
     # read image using command line arguement
     if args["Image Path"] != "False":
         filename = args["Image Path"]

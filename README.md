@@ -1,12 +1,20 @@
-# This is the Annotation pipeline for detecting cars, people, and lanes.
+# A program to detect lanes
 
 ## How to use image_detector.py:
 
-### Required Packages:
+### Required Packages (or use requirements.txt):
 * argparse (Default)
 * cv2 (Install Required)
 * numpy (Install Required)
 * colorama (Might Require Install)
+
+### Example Output
+Running just `python image_detector.py` outputs:
+![Image Example](Example.PNG)
+
+You can see it outputs the original and the lanes detected using the Convex Hull method.
+In the console on the bottom left every method used is checked and everything not used is x'ed out (Pretty!).
+To exit press `Esc`. More info below!
 
 ### Command Line Options
 Running the script with no command line options will run all options that say 'Default True'. Outputs contour detection on the   
